@@ -1,0 +1,43 @@
+name: CD Frontend EC2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: us-east-1
+      FRONTEND_INSTANCE_ID: ${{ secrets.FRONTEND_INSTANCE_ID }}
+
+    steps:
+      - name: Configurar AWS Credentials
+        run: |
+          mkdir -p ~/.aws
+
+          cat > ~/.aws/credentials << EOF
+          [default]
+          aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_session_token=${{ secrets.AWS_SESSION_TOKEN }}
+          EOF
+
+          cat > ~/.aws/config << EOF
+          [default]
+          region=${AWS_REGION}
+          output=json
+          EOF
+
+      - name: Deploy Frontend por SSM
+        run: |
+          aws ssm send-command \
+          --region "${AWS_REGION}" \
+          --document-name "AWS-RunShellScript" \
+          --instance-ids "${FRONTEND_INSTANCE_ID}" \
+          --parameters commands="[
+          \"sudo docker pull frarcem/front-innovatech:latest || true\",
+          \"sudo docker stop front_innovatech || true\",
+          \"sudo docker rm front_innovatech || true\",
+          \"sudo docker run -d --name front_innovatech -p 80:80 frarcem/front-innovatech:latest\"
+          ]"

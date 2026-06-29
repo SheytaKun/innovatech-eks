@@ -1,0 +1,51 @@
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_innovatech
+    restart: always
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: admin123
+      MYSQL_DATABASE: innovactech_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  back-despachos:
+    image: innovactech/back-despachos:local
+    build:
+      context: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+    container_name: back_despachos
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      DB_ENDPOINT: mysql
+      DB_PORT: 3306
+      DB_NAME: despachos_db
+      DB_USERNAME: root
+      DB_PASSWORD: admin123
+    depends_on:
+      - mysql
+
+  back-ventas:
+    image: innovactech/back-ventas:local
+    build:
+      context: ./back-Ventas_SpringBoot/Springboot-API-REST
+    container_name: back_ventas
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      DB_ENDPOINT: mysql
+      DB_PORT: 3306
+      DB_NAME: ventas_db
+      DB_USERNAME: root
+      DB_PASSWORD: admin123
+    depends_on:
+      - mysql
+
+volumes:
+  mysql_data:

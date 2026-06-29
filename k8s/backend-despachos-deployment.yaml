@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: innovatech-backend-despachos
+  namespace: innovatech
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: innovatech-backend-despachos
+  template:
+    metadata:
+      labels:
+        app: innovatech-backend-despachos
+    spec:
+      containers:
+        - name: innovatech-backend-despachos
+          image: 291271868902.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend:despachos-v1
+          ports:
+            - containerPort: 8081
+          env:
+            - name: DB_ENDPOINT
+              value: innovatech-db
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              value: despachos_db
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "700m"
+              memory: "1Gi"

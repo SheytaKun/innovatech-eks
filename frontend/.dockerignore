@@ -1,0 +1,6 @@
+dist
+.git
+.vscode
+.idea
+Dockerfile
+README.md
