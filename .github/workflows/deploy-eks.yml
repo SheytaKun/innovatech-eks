@@ -1,0 +1,127 @@
+  name: Deploy Innovatech to EKS
+
+  on:
+    push:
+      branches:
+        - main
+
+  env:
+    AWS_REGION: ${{ secrets.AWS_REGION }}
+    AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+    ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+    EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+    EKS_NAMESPACE: ${{ secrets.EKS_NAMESPACE }}
+
+    FRONTEND_REPOSITORY: innovatech-frontend
+    BACKEND_REPOSITORY: innovatech-backend
+    DB_REPOSITORY: innovatech-db
+
+    FRONTEND_DEPLOYMENT: innovatech-frontend
+    BACKEND_VENTAS_DEPLOYMENT: innovatech-backend-ventas
+    BACKEND_DESPACHOS_DEPLOYMENT: innovatech-backend-despachos
+    DB_DEPLOYMENT: innovatech-db
+
+  jobs:
+    build-push-deploy:
+      name: Build, Push and Deploy to EKS
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Configure AWS credentials
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+            aws-region: ${{ secrets.AWS_REGION }}
+
+        - name: Login to Amazon ECR
+          run: |
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+        - name: Build frontend image
+          run: |
+            docker build -t $ECR_REGISTRY/$FRONTEND_REPOSITORY:${{ github.sha }} ./frontend
+            docker tag $ECR_REGISTRY/$FRONTEND_REPOSITORY:${{ github.sha }} $ECR_REGISTRY/$FRONTEND_REPOSITORY:eks-v1
+
+        - name: Push frontend image
+          run: |
+            docker push $ECR_REGISTRY/$FRONTEND_REPOSITORY:${{ github.sha }}
+            docker push $ECR_REGISTRY/$FRONTEND_REPOSITORY:eks-v1
+
+        - name: Build backend ventas image
+          run: |
+            docker build -t $ECR_REGISTRY/$BACKEND_REPOSITORY:ventas-${{ github.sha }} ./backend/back-Ventas_SpringBoot/Springboot-API-REST
+            docker tag $ECR_REGISTRY/$BACKEND_REPOSITORY:ventas-${{ github.sha }} $ECR_REGISTRY/$BACKEND_REPOSITORY:ventas-v1
+
+        - name: Push backend ventas image
+          run: |
+            docker push $ECR_REGISTRY/$BACKEND_REPOSITORY:ventas-${{ github.sha }}
+            docker push $ECR_REGISTRY/$BACKEND_REPOSITORY:ventas-v1
+
+        - name: Build backend despachos image
+          run: |
+            docker build -t $ECR_REGISTRY/$BACKEND_REPOSITORY:despachos-${{ github.sha }} ./backend/back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+            docker tag $ECR_REGISTRY/$BACKEND_REPOSITORY:despachos-${{ github.sha }} $ECR_REGISTRY/$BACKEND_REPOSITORY:despachos-v1
+
+        - name: Push backend despachos image
+          run: |
+            docker push $ECR_REGISTRY/$BACKEND_REPOSITORY:despachos-${{ github.sha }}
+            docker push $ECR_REGISTRY/$BACKEND_REPOSITORY:despachos-v1
+
+        - name: Build database image
+          run: |
+            docker build -t $ECR_REGISTRY/$DB_REPOSITORY:${{ github.sha }} ./db
+            docker tag $ECR_REGISTRY/$DB_REPOSITORY:${{ github.sha }} $ECR_REGISTRY/$DB_REPOSITORY:eks-v1
+
+        - name: Push database image
+          run: |
+            docker push $ECR_REGISTRY/$DB_REPOSITORY:${{ github.sha }}
+            docker push $ECR_REGISTRY/$DB_REPOSITORY:eks-v1
+
+        - name: Update kubeconfig
+          run: |
+            aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+
+        - name: Apply Kubernetes manifests
+          run: |
+            kubectl apply -f k8s/
+
+        - name: Update frontend image in EKS
+          run: |
+            kubectl set image deployment/$FRONTEND_DEPLOYMENT \
+              innovatech-frontend=$ECR_REGISTRY/$FRONTEND_REPOSITORY:${{ github.sha }} \
+              -n $EKS_NAMESPACE
+
+        - name: Update backend ventas image in EKS
+          run: |
+            kubectl set image deployment/$BACKEND_VENTAS_DEPLOYMENT \
+              innovatech-backend-ventas=$ECR_REGISTRY/$BACKEND_REPOSITORY:ventas-${{ github.sha }} \
+              -n $EKS_NAMESPACE
+
+        - name: Update backend despachos image in EKS
+          run: |
+            kubectl set image deployment/$BACKEND_DESPACHOS_DEPLOYMENT \
+              innovatech-backend-despachos=$ECR_REGISTRY/$BACKEND_REPOSITORY:despachos-${{ github.sha }} \
+              -n $EKS_NAMESPACE
+
+        - name: Rollout status frontend
+          run: |
+            kubectl rollout status deployment/$FRONTEND_DEPLOYMENT -n $EKS_NAMESPACE
+
+        - name: Rollout status backend ventas
+          run: |
+            kubectl rollout status deployment/$BACKEND_VENTAS_DEPLOYMENT -n $EKS_NAMESPACE
+
+        - name: Rollout status backend despachos
+          run: |
+            kubectl rollout status deployment/$BACKEND_DESPACHOS_DEPLOYMENT -n $EKS_NAMESPACE
+
+        - name: Show Kubernetes resources
+          run: |
+            kubectl get pods -n $EKS_NAMESPACE
+            kubectl get svc -n $EKS_NAMESPACE
+            kubectl get hpa -n $EKS_NAMESPACE
