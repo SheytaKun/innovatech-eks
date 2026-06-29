@@ -44,7 +44,11 @@
 
         - name: Build frontend image
           run: |
-            docker build -t $ECR_REGISTRY/$FRONTEND_REPOSITORY:${{ github.sha }} ./frontend
+            docker build \
+              --build-arg VITE_API_VENTAS="" \
+              --build-arg VITE_API_DESPACHOS="" \
+              -t $ECR_REGISTRY/$FRONTEND_REPOSITORY:${{ github.sha }} ./frontend
+
             docker tag $ECR_REGISTRY/$FRONTEND_REPOSITORY:${{ github.sha }} $ECR_REGISTRY/$FRONTEND_REPOSITORY:eks-v1
 
         - name: Push frontend image
